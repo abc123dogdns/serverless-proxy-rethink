@@ -65,7 +65,14 @@ jobs:
           cache: npm
 
       - name: 🏗 Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "Found package-lock.json, running npm ci"
+            npm ci
+          else
+            echo "No package-lock.json, running npm install"
+            npm install
+          fi
 
       - name: 📚 Wrangler publish
         uses: cloudflare/wrangler-action@2.0.0
