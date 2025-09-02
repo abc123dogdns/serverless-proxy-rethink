@@ -53,13 +53,12 @@ jobs:
 
       - name: 🔎 Resolve environment
         run: |
-          # default is dev (WORKERS_ENV='')
           if [[ "${{ github.event.inputs.environment }}" == "prod" || "${{ github.ref_type }}" == "tag" ]]; then
             echo "WORKERS_ENV=prod" >> $GITHUB_ENV
           fi
           echo "COMMIT_SHA=${{ github.sha }}" >> $GITHUB_ENV
 
-      - name: 🟢 Setup Node.js
+      - name: 🟢 Setup Node.js 20
         uses: actions/setup-node@v3
         with:
           node-version: 20
@@ -69,7 +68,7 @@ jobs:
         run: npm ci
 
       - name: 📚 Wrangler publish
-        uses: cloudflare/wrangler-action@3
+        uses: cloudflare/wrangler-action@2.0.0
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           environment: ${{ env.WORKERS_ENV }}
