@@ -1,4 +1,5 @@
 name: ⛅ CF
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,15 +9,14 @@ on:
         default: 'dev'
         type: choice
         options:
-        - dev
-        - prod
+          - dev
+          - prod
       commit:
-        description: 'git tip commit to deploy'
+        description: 'git tip commit (branch or sha) to deploy'
         default: 'main'
         required: true
 
   push:
-    # TODO: inputs.environment and inputs.commit
     branches:
       - "main"
     tags:
@@ -32,11 +32,11 @@ on:
       - ".husky/*"
       - ".prettierrc.json"
       - "LICENSE"
+
   repository_dispatch:
 
 env:
   GIT_REF: ${{ github.event.inputs.commit || github.ref }}
-  # default is 'dev' which is really empty/no env
   WORKERS_ENV: ''
 
 jobs:
@@ -46,51 +46,38 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v3.3.0
+        uses: actions/checkout@v3
         with:
           ref: ${{ env.GIT_REF }}
           fetch-depth: 0
 
-      - name: 🛸 Env?
-        # 'dev' env deploys to default WORKERS_ENV, which is, '' (an empty string)
-        if: github.event.inputs.environment == 'prod'
+      - name: 🔎 Resolve environment
         run: |
-          echo "WORKERS_ENV=${WENV}" >> $GITHUB_ENV
-          echo "COMMIT_SHA=${COMMIT_SHA}" >> $GITHUB_ENV
-        shell: bash
-        env:
-          WENV: ${{ github.event.inputs.environment }}
-          COMMIT_SHA: ${{ github.sha }}
+          # default is dev (WORKERS_ENV='')
+          if [[ "${{ github.event.inputs.environment }}" == "prod" || "${{ github.ref_type }}" == "tag" ]]; then
+            echo "WORKERS_ENV=prod" >> $GITHUB_ENV
+          fi
+          echo "COMMIT_SHA=${{ github.sha }}" >> $GITHUB_ENV
 
-      - name: 🎱 Tag?
-        # docs.github.com/en/actions/learn-github-actions/contexts#github-context
-        if: github.ref_type == 'tag'
-        run: |
-          echo "WORKERS_ENV=${WENV}" >> $GITHUB_ENV
-          echo "COMMIT_SHA=${COMMIT_SHA}" >> $GITHUB_ENV
-        shell: bash
-        env:
-          # tagged deploys always deploy to prod
-          WENV: 'prod'
-          COMMIT_SHA: ${{ github.sha }}
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: npm
 
-        # npm (and node16) are installed by wrangler-action in a pre-job setup
-      - name: 🏗 Get dependencies
-        run: npm i
+      - name: 🏗 Install dependencies
+        run: npm ci
 
       - name: 📚 Wrangler publish
-        # github.com/cloudflare/wrangler-action
-        uses: cloudflare/wrangler-action@2.0.0
+        uses: cloudflare/wrangler-action@3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
-          # input overrides env-defaults, regardless
           environment: ${{ env.WORKERS_ENV }}
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           GIT_COMMIT_ID: ${{ env.GIT_REF }}
 
       - name: 🎤 Notice
-        # docs.github.com/en/actions/learn-github-actions/expressions
         if: ${{ success() }}
         run: |
-          echo "::notice::Deployed to ${WORKERS_ENV} / ${GIT_REF} @ ${COMMIT_SHA}"
+          echo "::notice::Deployed to ${WORKERS_ENV:-dev} / ${GIT_REF} @ ${COMMIT_SHA}"
